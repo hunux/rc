@@ -1,0 +1,17 @@
+#!/bin/sh
+
+. /etc/rc.conf
+. /etc/rc.subr
+
+if [ "$DAEMONS" ]; then
+	for daemon in $DAEMONS; do
+		if [ -x /etc/rc.d/$daemon ]; then
+			/etc/rc.d/$daemon start
+		fi
+	done
+fi
+
+# Start rc.local script
+if [ -x /etc/rc.local ]; then
+	/etc/rc.local
+fi

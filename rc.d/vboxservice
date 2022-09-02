@@ -1,0 +1,36 @@
+#!/bin/sh
+#
+# /etc/rc.d/vboxservice: start/stop Virtualbox service
+#
+
+. /etc/rc.subr
+
+NAME="VirtualBox Service"
+PROGNAME=VBoxService
+PROG=/usr/bin/$PROGNAME
+PIDFILE=/var/run/$PROGNAME.pid
+OPTS="-p $PIDFILE"
+
+case $1 in
+	start)
+		msg "Starting $NAME..."
+		start_daemon -p $PIDFILE $PROG $OPTS
+		;;
+	stop)
+		msg "Stopping $NAME..."
+		stop_daemon -p $PIDFILE $PROG
+		;;
+	restart)
+		$0 stop
+		sleep 1
+		$0 start
+		;;
+	status)
+		status_daemon -p $PIDFILE $PROG
+		;;
+	*)
+		echo "usage: $0 [start|stop|restart|status]"
+		;;
+esac
+
+# End of file

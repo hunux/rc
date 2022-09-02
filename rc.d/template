@@ -1,0 +1,51 @@
+#!/bin/sh
+#
+# /etc/rc.d/template: start/stop template
+#
+
+# Load daemon configuration
+. /etc/conf.d/daemonconf
+. /etc/rc.subr
+
+NAME="template daemon"
+PROGNAME=foo
+PROG=/usr/bin/$PROGNAME
+OPTS="--background"
+PIDFILE=/var/run/$PROGNAME.pid
+PID=$(pidof -o %PPID $PROG)
+
+case $1 in
+	start)
+		msg "Starting $NAME..."
+		if [ ! "$PID" ]; then
+			$PROG $OPTS
+		else
+			stat_skip
+		fi
+		;;
+	stop)
+		msg "Stopping $NAME..."
+		if [ "$PID" ]; then
+			kill $PID &>/dev/null
+		else
+			stat_skip
+		fi
+		;;
+	restart)
+		$0 stop
+		sleep 1
+		$0 start
+		;;
+	status)
+		if [ "$PID" ]; then
+			echo "$NAME is running with pid: $PID"
+		else
+			echo "$NAME is not running."
+		fi
+		;;
+	*)
+		echo "usage: $0 [start|stop|restart|status]"
+		;;
+esac
+
+# End of file

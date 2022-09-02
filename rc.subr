@@ -1,0 +1,197 @@
+#!/bin/sh
+
+COLOUR="\033[90m"
+CRESET="\033[0m"
+
+welcome() {
+	msg "Booting up ${COLOUR}$1${CRESET}!"
+}
+
+msg() {
+	printf "%b" "${COLOUR}::${CRESET} $@\n"
+}
+
+start_daemon() {
+	# Usage: start_daemon [-f] [-n nicelevel] [-p pidfile] program [args...]
+	
+	nice=0
+	
+	while true; do
+		case $1 in
+			-f) force=1
+			    shift;;
+			-n) nice=$2
+			    shift 2;;
+			-p) pidfile=$2
+			    shift 2;;
+			 *) pathname=$1
+			    shift
+			    break;;
+		esac
+	done
+	
+	if [ ${pathname##*/} = "$pathname" ]; then
+		progname=$pathname
+		pathname=$(command -v $pathname)
+	else
+		progname=${pathname##*/}
+	fi
+	
+	# check for valid program
+	[ "$pathname" ]    || return 5
+	[ -x "$pathname" ] || return 5
+
+	if [ "$pidfile" ]; then
+		pidlist=$(procpid -p $pidfile $progname)
+	else
+		pidlist=$(procpid $progname)
+	fi
+
+	if [ ! "$force" ]; then
+		[ "$pidlist" ] && return 100
+	fi
+	
+	nice -n $nice $pathname $@
+}
+
+stop_daemon() {
+	# Usage: stop_daemon [-p pidfile] program [signal]
+	
+	signal="-TERM"
+	fallback="-KILL"
+	delay=10
+	
+	while true; do
+		case $1 in
+			-p) pidfile=$2
+			    shift 2;;
+			 *) pathname=$1
+			    shift
+			    break ;;
+		esac
+	done
+
+	[ "$1" ] && signal=$1
+	[ "$2" ] && return 4
+	
+	if [ ${pathname##*/} = "$pathname" ]; then
+		progname=$pathname
+		pathname=$(command -v $pathname)
+	else
+		progname=${pathname##*/}
+	fi
+	
+	# check for valid program
+	[ "$pathname" ]    || return 5
+	[ -x "$pathname" ] || return 5
+	
+	if [ "$pidfile" ]; then
+		pidlist=$(procpid -p $pidfile $progname)
+	else
+		pidlist=$(procpid $progname)
+	fi
+
+	[ "$pidlist" ] || return 100
+	
+	for pid in $pidlist; do
+		kill -0 $pid 2>/dev/null
+		if [ "$?" = 0 ]; then
+			kill "$signal" $pid 2>/dev/null
+			while [ "$delay" != 0 ]; do
+				kill -0 $pid 2>/dev/null || piddead=1
+				[ "$piddead" ] && break
+				sleep 0.1
+				delay="$(($delay - 1))"
+			done
+			if [ ! "$piddead" ]; then
+				kill "$fallback" $pid 2>/dev/null
+			fi
+		fi
+	done
+	
+	if [ "$pidfile" ] && [ -e "$pidfile" ]; then
+		rm -f "$pidfile"
+	fi
+}
+
+status_daemon() {
+	# Usage: status_daemon [-p pidfile] program
+	
+	while true; do
+		case $1 in
+			-p) pidfile=$2
+			    shift;;
+			 *) pathname=$1
+			    [ "$2" ] && return 4
+			    break ;;
+		esac
+		shift
+	done
+	
+	if [ ${pathname##*/} = "$pathname" ]; then
+		progname=$pathname
+		pathname=$(command -v $pathname)
+	else
+		progname=${pathname##*/}
+	fi
+	
+	# check for valid program
+	[ "$pathname" ]    || return 5
+	[ -x "$pathname" ] || return 5
+	
+	if [ "$pidfile" ]; then
+		pidlist=$(procpid -p $pidfile $progname)
+	else
+		pidlist=$(procpid $progname)
+	fi
+	
+	if [ "$pidlist" ]; then
+		echo "$progname is running with Process ID(s): $pidlist"
+	else
+		if [ "$pidfile" ] && [ -e "$pidfile" ]; then
+			echo "$progname is not running but '$pidfile' exist."
+		else
+			echo "$progname is not running."
+		fi
+	fi
+}			
+				
+procpid() {
+	# Usage: procpid [-p pidfile] program
+	
+	while true; do
+		case $1 in
+			-p) pidfile=$2
+			    shift;;
+			 *) pathname=$1
+			    [ "$2" ] && return 4
+			    break ;;
+		esac
+		shift
+	done
+	
+	if [ ${pathname##*/} = "$pathname" ]; then
+		progname=$pathname
+		pathname=$(command -v $pathname)
+	else
+		progname=${pathname##*/}
+	fi
+	
+	# check for valid program
+	[ "$pathname" ]    || return 5
+	[ -x "$pathname" ] || return 5
+	
+	if [ "$pidfile" ] && [ -e "$pidfile" ]; then
+		pidlist=$(head -n1 "$pidfile")
+	fi
+	
+	pidlist="$pidlist $(pidof $progname)"
+		
+	for pid in $pidlist; do
+		echo $pids | grep -qw $pid && continue
+		pids="$pids $pid"
+	done
+	
+	echo $pids
+}
+
